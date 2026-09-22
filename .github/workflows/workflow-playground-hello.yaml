@@ -25,5 +25,5 @@ jobs:
 
       - name: 检查入门文档
         run: |
-          test -s readme-github-actions.md
+          test -s README.md
           echo "检查通过：入门文档存在且非空。"
