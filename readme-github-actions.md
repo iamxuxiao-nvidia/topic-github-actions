@@ -1,7 +1,7 @@
 # GitHub Actions：从第一次运行到看懂执行机制
 
 
-**GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。** 本仓库准备了两个手动触发的练习：Hello 打印执行环境并检查这份文档是否存在且非空；Wait 等待 5 秒后继续执行下一步。
+**GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。** 本仓库准备了三个手动触发的练习：Hello 打印执行环境并检查这份文档是否存在且非空；Wait 等待 5 秒后继续执行下一步；Two Jobs 将任务分成两个并行分支，等待它们完成后汇总结果并结束。
 
 ## 1. 先理解几个词
 
@@ -78,7 +78,8 @@ topic-github-actions/
 └── .github/
     └── workflows/
         ├── workflow-playground-hello.yaml  # 打印环境并检查文档
-        └── workflow-playground-wait.yaml   # 等待 5 秒后继续执行
+        ├── workflow-playground-wait.yaml   # 等待 5 秒后继续执行
+        └── workflow-two-jobs.yaml          # 两个并行任务完成后汇总
 ```
 
 本地 Git 仓库和 GitHub 在线仓库是两份不同位置的仓库。仅在本地保存 YAML 不会启动 GitHub Actions；需要将文件提交、推送到 GitHub，并在那里触发运行。
@@ -152,6 +153,87 @@ jobs:
 
 `sleep 5` 会暂停当前步骤 5 秒；步骤结束后，Runner 才执行下一步并打印完成消息。这个例子无需读取仓库文件，因此没有下载代码步骤，并使用 `permissions: {}` 关闭仓库 Token 权限。
 
+并行与汇总示例保存为 `.github/workflows/workflow-two-jobs.yaml`：
+
+两个并行分支分别等待 5 秒、8 秒，并输出 10、20；`reduce` 等待两个任务都成功完成后，将结果相加得到 30，最后执行 `Done` 步骤。这里共有三个 Job：两个并行任务和一个汇总任务。
+
+```mermaid
+flowchart LR
+    start["Run workflow"] --> job_a["job_a：等待 5 秒，输出 10"]
+    start --> job_b["job_b：等待 8 秒，输出 20"]
+    job_a --> reduce["reduce：10 + 20 = 30"]
+    job_b --> reduce
+    reduce --> done["Done：reduce 的最后一步"]
+```
+
+```yaml
+name: GitHub Actions Playground - Two Jobs
+
+# 在 GitHub 网页上点击 Run workflow 手动触发
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # 两个没有依赖关系的任务可以并行运行。
+  job_a:
+    name: Job A - 等待 5 秒
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      value: ${{ steps.compute.outputs.value }}
+
+    steps:
+      - name: 等待并生成第一个结果
+        id: compute
+        run: |
+          echo "Job A 开始。"
+          sleep 5
+          echo "value=10" >> "$GITHUB_OUTPUT"
+          echo "Job A 完成，结果为 10。"
+
+  job_b:
+    name: Job B - 等待 8 秒
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      value: ${{ steps.compute.outputs.value }}
+
+    steps:
+      - name: 等待并生成第二个结果
+        id: compute
+        run: |
+          echo "Job B 开始。"
+          sleep 8
+          echo "value=20" >> "$GITHUB_OUTPUT"
+          echo "Job B 完成，结果为 20。"
+
+  reduce:
+    name: Reduce - 等待两个任务后汇总
+    # 只有两个任务都成功完成，才会执行 reduce。
+    needs: [job_a, job_b]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 汇总两个任务的结果
+        env:
+          VALUE_A: ${{ needs.job_a.outputs.value }}
+          VALUE_B: ${{ needs.job_b.outputs.value }}
+        run: |
+          total=$((VALUE_A + VALUE_B))
+          echo "Reduce: $VALUE_A + $VALUE_B = $total"
+          echo "Reduce: $VALUE_A + $VALUE_B = $total" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Done
+        run: echo "Done：两个并行任务和汇总步骤都已完成。"
+```
+
+`job_a` 和 `job_b` 没有 `needs`，因此可同时等待 Runner 调度；实际开始时间取决于 Runner 和并发额度。`needs: [job_a, job_b]` 是汇合点，保证 `reduce` 等待两者都成功完成。任一任务失败、取消或被跳过时，本例的 `reduce` 和其中的 `Done` 步骤不会执行。
+
+每个分支通过 `$GITHUB_OUTPUT` 写出步骤结果，再用 Job 的 `outputs` 暴露给下游。`reduce` 通过 `needs.job_a.outputs.value` 和 `needs.job_b.outputs.value` 接收结果；相加后打印日志，并写入工作流运行页的 Summary。参见 [Job 依赖](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs) 和 [跨 Job 传递输出](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs)。
+
 ## 6. 发布到 GitHub，再运行第一次
 
 ### 第一步：准备首次本地提交
@@ -164,7 +246,7 @@ cd /Users/xixu/Dropbox/nv-work/nv-projects/topic-github-actions
 git config user.name "YOUR_NAME"
 git config user.email "YOUR_GITHUB_EMAIL"
 
-git add README.md readme-github-actions.md .gitignore .github/workflows/workflow-playground-hello.yaml .github/workflows/workflow-playground-wait.yaml
+git add README.md readme-github-actions.md .gitignore .github/workflows/
 git commit -m "Add GitHub Actions playground and Chinese guide"
 ```
 
@@ -198,6 +280,8 @@ git -c credential.helper= -c credential.username=iamxuxiao-nvidia push -u origin
 5. 展开各步骤，查看输出；正常情况下最终状态为绿色成功。
 
 要运行等待示例，在 **Actions** 中选择 **GitHub Actions Playground - Wait → Run workflow**，打开任务 `wait`，观察“等待 5 秒”和“等待完成后继续执行”两个步骤的日志。
+
+要运行并行汇总示例，在 **Actions** 中选择 **GitHub Actions Playground - Two Jobs → Run workflow**。运行页的任务图中可看到 `job_a`、`job_b` 两个分支汇合到 `reduce`；等待全部完成后，查看 Summary 中的 `Reduce: 10 + 20 = 30` 和 `Done` 步骤日志。
 
 手动触发要求工作流使用 `workflow_dispatch`，该工作流文件已存在于默认分支，并且操作人有仓库写权限。本例只有手动触发，首次推送后不会自动运行。参见 [手动运行工作流](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 

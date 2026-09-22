@@ -1,0 +1,61 @@
+name: GitHub Actions Playground - Two Jobs
+
+# 在 GitHub 网页上点击 Run workflow 手动触发
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  # 两个没有依赖关系的任务可以并行运行。
+  job_a:
+    name: Job A - 等待 5 秒
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      value: ${{ steps.compute.outputs.value }}
+
+    steps:
+      - name: 等待并生成第一个结果
+        id: compute
+        run: |
+          echo "Job A 开始。"
+          sleep 5
+          echo "value=10" >> "$GITHUB_OUTPUT"
+          echo "Job A 完成，结果为 10。"
+
+  job_b:
+    name: Job B - 等待 8 秒
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      value: ${{ steps.compute.outputs.value }}
+
+    steps:
+      - name: 等待并生成第二个结果
+        id: compute
+        run: |
+          echo "Job B 开始。"
+          sleep 8
+          echo "value=20" >> "$GITHUB_OUTPUT"
+          echo "Job B 完成，结果为 20。"
+
+  reduce:
+    name: Reduce - 等待两个任务后汇总
+    # 只有两个任务都成功完成，才会执行 reduce。
+    needs: [job_a, job_b]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 汇总两个任务的结果
+        env:
+          VALUE_A: ${{ needs.job_a.outputs.value }}
+          VALUE_B: ${{ needs.job_b.outputs.value }}
+        run: |
+          total=$((VALUE_A + VALUE_B))
+          echo "Reduce: $VALUE_A + $VALUE_B = $total"
+          echo "Reduce: $VALUE_A + $VALUE_B = $total" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Done
+        run: echo "Done：两个并行任务和汇总步骤都已完成。"
