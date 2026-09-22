@@ -136,9 +136,9 @@ git -c credential.helper= -c credential.username=iamxuxiao-nvidia push -u origin
 | [GitHub Actions Playground - Hello](.github/workflows/workflow-playground-hello.yaml) | 手动 | `hello` | 下载仓库代码，打印仓库名称和执行环境，检查 `README.md` 存在且非空。 |
 | [GitHub Actions Playground - Wait](.github/workflows/workflow-playground-wait.yaml) | 手动 | `wait` | 打印开始消息，等待 5 秒，再执行下一步并打印完成消息。 |
 | [GitHub Actions Playground - Two Jobs](.github/workflows/workflow-two-jobs.yaml) | 手动 | `job_a`、`job_b` → `reduce` | 两个任务并行等待 5 秒和 8 秒，分别输出 10 和 20；两者成功后汇总为 30，写入日志和运行页 Summary，最后执行 `Done` 步骤。 |
-| [GitHub Actions Playground - Hello World Bazel](.github/workflows/workflow-hello-world-bazel.yaml) | 推送到 `main`、向 `main` 提交 PR、手动 | `hello-world-bazel` | 用 Bazel 编译并运行 C++ 程序，检查输出为 `Hello, world!`，并写入运行页 Summary。 |
+| [GitHub Actions Playground - Hello World Bazel](.github/workflows/workflow-hello-world-bazel.yaml) | 推送到 `main`、向 `main` 提交 PR、手动 | `hello-world-bazel` | 构建预装 Bazel 7 的自定义 Docker 镜像，在容器中编译并运行 C++ 程序，检查输出为 `Hello, world!`，并写入运行页 Summary。 |
 
-第 3.4 节介绍 Bazel 项目的本地构建和完整工作流；第 3.5 节另提供自定义容器镜像示例，可按说明新增；第 3.6 节提供基于 Hello 的动手实验。
+第 3.4 节介绍 Bazel 项目的自定义镜像、本地构建和完整工作流；第 3.5 节另介绍如何发布镜像并用于容器 Job；第 3.6 节提供基于 Hello 的动手实验。
 
 ### 3.1 Hello：打印环境并检查文档
 
@@ -296,15 +296,35 @@ jobs:
 
 ### 3.4 Bazel：编译并运行 C++ Hello World
 
-第四个工作流是 [.github/workflows/workflow-hello-world-bazel.yaml](.github/workflows/workflow-hello-world-bazel.yaml)。它在 Ubuntu Runner 上下载代码、安装 Bazelisk、调用 Bazel 编译，再运行程序并检查输出。
+第四个工作流是 [.github/workflows/workflow-hello-world-bazel.yaml](.github/workflows/workflow-hello-world-bazel.yaml)。它在 Ubuntu Runner 上下载代码，使用仓库中的 Dockerfile 构建预装 Bazel 7 的自定义镜像，再通过 `docker run` 在容器中编译、运行程序并检查输出。
 
 项目文件说明：
 
 - [hello-world/main.cc](hello-world/main.cc)：程序入口，打印 `Hello, world!`。
 - [hello-world/BUILD.bazel](hello-world/BUILD.bazel)：使用 `rules_cc` 的 `cc_binary` 规则，把 `main.cc` 编译成 `hello-world` 可执行文件。
-- [MODULE.bazel](MODULE.bazel)：定义仓库根目录为 Bazel 模块，并声明 `rules_cc` 依赖；[.bazelversion](.bazelversion) 固定 Bazel 为 `8.4.2`，本地和 CI 都通过 Bazelisk 读取这个版本。
+- [MODULE.bazel](MODULE.bazel)：定义仓库根目录为 Bazel 模块，并声明 `rules_cc` 依赖；[.bazelversion](.bazelversion) 固定 Bazel 为 `7.7.1`，镜像构建和本地 Bazelisk 都读取这个版本。
+- [Dockerfile](Dockerfile)：基于 `ubuntu:24.04`，预装 C++ 编译工具、Git、Python 3 和 Bazel 7。构建时按目标架构下载 Bazel 官方二进制，校验 SHA-256，并检查安装后的版本；支持 `linux/amd64` 和 `linux/arm64`。参见 [Bazel 7.7.1 官方发布](https://github.com/bazelbuild/bazel/releases/tag/7.7.1)。
+- [.dockerignore](.dockerignore)：镜像构建上下文只包含 Dockerfile 和版本文件，项目源码在运行时挂载到容器的 `/workspace`。
 
-在本地先安装 [Bazelisk](https://github.com/bazelbuild/bazelisk#installation) 和 C++ 编译器。macOS 可以使用 `brew install bazelisk`，并通过 `xcode-select --install` 安装命令行开发工具；Ubuntu 可以安装 `build-essential`，再按 Bazelisk 官方说明安装启动器。首次构建需要联网下载 Bazel 和构建规则。
+本地使用同一个自定义镜像时，先安装并启动 Docker，然后在仓库根目录执行：
+
+```bash
+docker build --tag bazel-hello-world:local .
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/tmp \
+  --volume "$(pwd):/workspace" \
+  bazel-hello-world:local \
+  bash -euo pipefail -c '
+    bazel --version
+    bazel build //hello-world:hello-world
+    bazel run //hello-world:hello-world
+  '
+```
+
+镜像中已经安装 Bazel 和编译器；构建镜像需要联网下载系统软件包与 Bazel，首次编译还需要下载构建规则。`--user` 使用本机用户的 UID/GID，避免在挂载目录生成 root 所有的文件；`HOME=/tmp` 为该用户提供可写的临时目录。Bazel 缓存位于容器内，`--rm` 会在退出时删除容器及缓存。参见 [Docker run 参数说明](https://docs.docker.com/reference/cli/docker/container/run/)。
+
+也可直接在本机安装 [Bazelisk](https://github.com/bazelbuild/bazelisk#installation) 和 C++ 编译器。macOS 可以使用 `brew install bazelisk`，并通过 `xcode-select --install` 安装命令行开发工具；Ubuntu 可以安装 `build-essential`，再按 Bazelisk 官方说明安装启动器。
 
 在仓库根目录运行：
 
@@ -346,21 +366,29 @@ jobs:
       - name: 下载仓库代码
         uses: actions/checkout@v6
 
-      - name: 安装 Bazelisk（读取 .bazelversion）
-        uses: bazel-contrib/setup-bazel@0.19.0
+      - name: 构建预装 Bazel 7 的自定义镜像
+        run: docker build --tag bazel-hello-world:local .
 
-      - name: 使用 Bazel 编译 C++ Hello World
-        run: bazel build //hello-world:hello-world
-
-      - name: 运行程序并检查输出
+      - name: 在自定义镜像中编译、运行并检查输出
         run: |
-          output=$(bazel run //hello-world:hello-world)
+          output=$(
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              --env HOME=/tmp \
+              --volume "${GITHUB_WORKSPACE}:/workspace" \
+              bazel-hello-world:local \
+              bash -euo pipefail -c '
+                bazel --version >&2
+                bazel build //hello-world:hello-world >&2
+                bazel run //hello-world:hello-world
+              '
+          )
           printf '%s\n' "$output"
           test "$output" = "Hello, world!"
           echo "Bazel 编译成功，程序输出：$output" >> "$GITHUB_STEP_SUMMARY"
 ```
 
-`setup-bazel` 安装 Bazelisk；Bazelisk 根据 `.bazelversion` 下载并启动指定版本的 Bazel。编译失败时工作流会失败；程序运行失败或输出不匹配时，最后一步也会失败。成功时日志和运行页 Summary 都能看到 `Hello, world!`。参见 [setup-bazel 使用说明](https://github.com/bazel-contrib/setup-bazel) 和 [Bazel C++ 入门](https://bazel.build/start/cpp)。
+每次工作流先构建本地镜像 `bazel-hello-world:local`，再挂载代码执行编译和运行，因此无需提前发布镜像或配置 Registry 凭据。镜像构建、程序编译、运行失败或输出不匹配时，工作流都会失败。成功时日志和运行页 Summary 都能看到 `Hello, world!`。参见 [Bazel C++ 入门](https://bazel.build/start/cpp)。
 
 ### 3.5 使用自定义容器镜像
 
@@ -393,37 +421,29 @@ jobs:
       - name: 查看容器环境并检查文档
         run: |
           cat /etc/os-release
-          python --version
+          python3 --version
           test -s README.md
           echo "检查通过：已在容器中运行并读取仓库文档。"
 ```
 
-这个示例使用 [Python 官方镜像](https://github.com/docker-library/python/blob/master/3.12/slim-bookworm/Dockerfile)，日志会显示容器的系统信息和 Python 版本。要使用已有的自定义镜像，将 `image` 改为实际地址，例如 `ghcr.io/your-owner/actions-playground:1.0`；私有镜像还需按第 3.5.3 节配置认证。
+这个示例使用 [Python 官方镜像](https://github.com/docker-library/python/blob/master/3.12/slim-bookworm/Dockerfile)，日志会显示容器的系统信息和 Python 版本。要使用已有的自定义镜像，将 `image` 改为实际地址，例如 `ghcr.io/your-owner/bazel-hello-world:7.7.1`；私有镜像还需按第 3.5.3 节配置认证。
 
 #### 3.5.2 构建并发布自己的镜像
 
-例如，在仓库根目录创建 `Dockerfile`，在 Python 镜像中预装 Git 和编译工具：
-
-```dockerfile
-FROM python:3.12-slim-bookworm
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash ca-certificates git build-essential \
-    && rm -rf /var/lib/apt/lists/*
-```
+仓库根目录的 [Dockerfile](Dockerfile) 已提供预装 Bazel 7 和 C++ 编译工具的 Ubuntu 镜像，第 3.4 节直接在 Runner 上构建并运行它。如果希望通过 `container.image` 在整个 Job 中使用该镜像，可以先将它发布到 GHCR：
 
 在已安装并启动 Docker、且可使用 Buildx 的本机执行以下命令。将 `YOUR_GITHUB_USERNAME` 替换为登录账号，`your-owner` 替换为有发布权限的个人或组织名称（镜像路径使用小写）。登录时在密码提示处输入具有 `write:packages` 权限的 PAT（classic）；组织启用 SSO 时还需为 Token 授权。参见 [GHCR 认证与发布说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
 
 ```bash
 docker login ghcr.io --username YOUR_GITHUB_USERNAME
 docker buildx build --platform linux/amd64 \
-  --tag ghcr.io/your-owner/actions-playground:1.0 \
+  --tag ghcr.io/your-owner/bazel-hello-world:7.7.1 \
   --push .
 ```
 
 在包含 `Dockerfile` 的目录运行构建命令。这里为示例中的标准 `ubuntu-latest` Runner 构建 `linux/amd64` 镜像，在 Apple Silicon 等 ARM 电脑上也显式指定该目标；`--push` 将构建结果发布到 GHCR。参见 [Docker Buildx 参数说明](https://docs.docker.com/reference/cli/docker/buildx/build/)。
 
-发布成功后，将第 3.5.1 节的 `image` 改为 `ghcr.io/your-owner/actions-playground:1.0`。GHCR 首次发布的包默认是私有的，可按下一步配置读取权限，或在包设置中将其公开；公开镜像可匿名拉取。需要固定镜像内容时，可使用 `ghcr.io/your-owner/actions-playground@sha256:实际摘要`，摘要可从构建输出中取得。参见 [GHCR 镜像可见性与摘要拉取](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
+发布成功后，将第 3.5.1 节的 `image` 改为 `ghcr.io/your-owner/bazel-hello-world:7.7.1`。GHCR 首次发布的包默认是私有的，可按下一步配置读取权限，或在包设置中将其公开；公开镜像可匿名拉取。需要固定镜像内容时，可使用 `ghcr.io/your-owner/bazel-hello-world@sha256:实际摘要`，摘要可从构建输出中取得。参见 [GHCR 镜像可见性与摘要拉取](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
 
 #### 3.5.3 使用私有镜像
 
@@ -439,7 +459,7 @@ permissions:
 
 ```yaml
 container:
-  image: ghcr.io/your-owner/actions-playground:1.0
+  image: ghcr.io/your-owner/bazel-hello-world:7.7.1
   credentials:
     username: ${{ github.actor }}
     password: ${{ secrets.GITHUB_TOKEN }}

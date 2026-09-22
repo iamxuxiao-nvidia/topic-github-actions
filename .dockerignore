@@ -1,0 +1,4 @@
+# The image contains build tools; mount the project when running it.
+**
+!Dockerfile
+!.bazelversion

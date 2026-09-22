@@ -20,15 +20,23 @@ jobs:
       - name: 下载仓库代码
         uses: actions/checkout@v6
 
-      - name: 安装 Bazelisk（读取 .bazelversion）
-        uses: bazel-contrib/setup-bazel@0.19.0
+      - name: 构建预装 Bazel 7 的自定义镜像
+        run: docker build --tag bazel-hello-world:local .
 
-      - name: 使用 Bazel 编译 C++ Hello World
-        run: bazel build //hello-world:hello-world
-
-      - name: 运行程序并检查输出
+      - name: 在自定义镜像中编译、运行并检查输出
         run: |
-          output=$(bazel run //hello-world:hello-world)
+          output=$(
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              --env HOME=/tmp \
+              --volume "${GITHUB_WORKSPACE}:/workspace" \
+              bazel-hello-world:local \
+              bash -euo pipefail -c '
+                bazel --version >&2
+                bazel build //hello-world:hello-world >&2
+                bazel run //hello-world:hello-world
+              '
+          )
           printf '%s\n' "$output"
           test "$output" = "Hello, world!"
           echo "Bazel 编译成功，程序输出：$output" >> "$GITHUB_STEP_SUMMARY"
