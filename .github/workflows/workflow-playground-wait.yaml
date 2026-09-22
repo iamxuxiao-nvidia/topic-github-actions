@@ -1,0 +1,22 @@
+name: GitHub Actions Playground - Wait
+
+# 在 GitHub 网页上点击 Run workflow 手动触发
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 开始等待示例
+        run: echo "准备等待 5 秒。"
+
+      - name: 等待 5 秒
+        run: sleep 5
+
+      - name: 等待完成后继续执行
+        run: echo "已等待 5 秒，继续执行后续步骤。"

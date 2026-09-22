@@ -1,13 +1,13 @@
 # GitHub Actions：从第一次运行到看懂执行机制
 
 
-**GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。** 本仓库准备了一个手动触发的练习：打印执行环境，再检查这份文档是否存在且非空。
+**GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。** 本仓库准备了两个手动触发的练习：Hello 打印执行环境并检查这份文档是否存在且非空；Wait 等待 5 秒后继续执行下一步。
 
 ## 1. 先理解几个词
 
 | 名称 | 中文理解 | 本仓库中的例子 |
 |---|---|---|
-| Workflow | 一整套自动化流程，由 YAML 文件定义 | `.github/workflows/playground.yml` |
+| Workflow | 一整套自动化流程，由 YAML 文件定义 | `.github/workflows/workflow-playground-hello.yaml` |
 | Event | 触发流程的事件 | `workflow_dispatch`：手动触发；`push`：推送代码 |
 | Job | 流程中的一个任务 | `hello` |
 | Step | 任务内的一步操作 | 下载代码、查看环境、检查文档 |
@@ -77,17 +77,18 @@ topic-github-actions/
 ├── readme-github-actions.md       # 本文
 └── .github/
     └── workflows/
-        └── playground.yml        # 可直接使用的工作流
+        ├── workflow-playground-hello.yaml  # 打印环境并检查文档
+        └── workflow-playground-wait.yaml   # 等待 5 秒后继续执行
 ```
 
 本地 Git 仓库和 GitHub 在线仓库是两份不同位置的仓库。仅在本地保存 YAML 不会启动 GitHub Actions；需要将文件提交、推送到 GitHub，并在那里触发运行。
 
 ## 5. 可直接复制的完整工作流
 
-保存为 `.github/workflows/playground.yml`。以下内容与本仓库提供的文件一致：
+保存为 `.github/workflows/workflow-playground-hello.yaml`。以下内容与本仓库提供的文件一致：
 
 ```yaml
-name: GitHub Actions Playground
+name: GitHub Actions Playground - Hello
 
 # 在 GitHub 网页上点击 Run workflow 手动触发
 on:
@@ -122,6 +123,35 @@ jobs:
 
 工作流文件必须放在 `.github/workflows/` 中，并使用 `.yml` 或 `.yaml` 扩展名。示例使用的 `actions/checkout@v6` 与核实日期的官方入门示例一致。参见 [官方快速入门](https://docs.github.com/en/actions/get-started/quickstart) 和 [工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)。
 
+第二个工作流保存为 `.github/workflows/workflow-playground-wait.yaml`：
+
+```yaml
+name: GitHub Actions Playground - Wait
+
+# 在 GitHub 网页上点击 Run workflow 手动触发
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  wait:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: 开始等待示例
+        run: echo "准备等待 5 秒。"
+
+      - name: 等待 5 秒
+        run: sleep 5
+
+      - name: 等待完成后继续执行
+        run: echo "已等待 5 秒，继续执行后续步骤。"
+```
+
+`sleep 5` 会暂停当前步骤 5 秒；步骤结束后，Runner 才执行下一步并打印完成消息。这个例子无需读取仓库文件，因此没有下载代码步骤，并使用 `permissions: {}` 关闭仓库 Token 权限。
+
 ## 6. 发布到 GitHub，再运行第一次
 
 ### 第一步：准备首次本地提交
@@ -134,7 +164,7 @@ cd /Users/xixu/Dropbox/nv-work/nv-projects/topic-github-actions
 git config user.name "YOUR_NAME"
 git config user.email "YOUR_GITHUB_EMAIL"
 
-git add README.md readme-github-actions.md .gitignore .github/workflows/playground.yml
+git add README.md readme-github-actions.md .gitignore .github/workflows/workflow-playground-hello.yaml .github/workflows/workflow-playground-wait.yaml
 git commit -m "Add GitHub Actions playground and Chinese guide"
 ```
 
@@ -144,28 +174,34 @@ git commit -m "Add GitHub Actions playground and Chinese guide"
 
 在 [GitHub 创建仓库页面](https://github.com/new) 新建名为 `topic-github-actions` 的空仓库，按需要选择公开或私有。因为本地已有文件，远程创建时不要额外勾选 README、`.gitignore` 或 License。
 
-将下面的 `YOUR_USERNAME` 替换为实际账号或组织名；若远程仓库名称不同，也相应修改 URL。运行前需已配置 GitHub 的 HTTPS 身份认证；也可以使用仓库页面提供的 SSH URL。
+下面使用账号 `iamxuxiao-nvidia`，通过 HTTPS + Personal Access Token（PAT）推送。准备一个有该仓库写权限的 Token；运行 `git push` 后，在 `Password` 提示处粘贴 Token 并按回车，输入时不会显示字符。
 
 ```bash
 cd /Users/xixu/Dropbox/nv-work/nv-projects/topic-github-actions
 
-git remote add origin https://github.com/YOUR_USERNAME/topic-github-actions.git
-git push -u origin main
+git remote set-url origin https://github.com/iamxuxiao-nvidia/topic-github-actions.git
+
+# 出现 Password 提示时粘贴 PAT
+git -c credential.helper= -c credential.username=iamxuxiao-nvidia push -u origin main
 ```
 
-`git remote add origin` 只需执行一次；它关联已经创建的远程仓库，本身不会在 GitHub 创建仓库。参见 [将本地代码添加到 GitHub](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github)。
+本地已配置 `origin`，因此使用 `git remote set-url` 更新地址；若首次配置且尚无 `origin`，将该行改为 `git remote add origin https://github.com/iamxuxiao-nvidia/topic-github-actions.git`。这些命令只关联已经创建的远程仓库，本身不会在 GitHub 创建仓库。参见 [将本地代码添加到 GitHub](https://docs.github.com/en/migrations/importing-source-code/using-the-command-line-to-import-source-code/adding-locally-hosted-code-to-github)。
+
+`-c credential.helper=` 仅对本次命令禁用凭据助手，`-c credential.username=iamxuxiao-nvidia` 提供登录用户名；Token 在密码提示处输入，不写入命令、远程 URL 或 Git 配置，也不会交给凭据助手保存。后续推送使用相同命令并再次输入 Token。参见 [GitHub Token 命令行用法](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#using-a-personal-access-token-on-the-command-line) 和 [Git 凭据配置](https://git-scm.com/docs/gitcredentials)。
 
 ### 第三步：点击运行并看日志
 
-1. 打开 GitHub 仓库，确认默认分支为 `main`，且能看到 `.github/workflows/playground.yml`。
-2. 点击 **Actions → GitHub Actions Playground → Run workflow**。
+1. 打开 GitHub 仓库，确认默认分支为 `main`，且能看到 `.github/workflows/workflow-playground-hello.yaml`。
+2. 点击 **Actions → GitHub Actions Playground - Hello → Run workflow**。
 3. 选择 `main`，再次点击 **Run workflow**。
 4. 打开新出现的运行记录，再点击任务 `hello`。
 5. 展开各步骤，查看输出；正常情况下最终状态为绿色成功。
 
+要运行等待示例，在 **Actions** 中选择 **GitHub Actions Playground - Wait → Run workflow**，打开任务 `wait`，观察“等待 5 秒”和“等待完成后继续执行”两个步骤的日志。
+
 手动触发要求工作流使用 `workflow_dispatch`，该工作流文件已存在于默认分支，并且操作人有仓库写权限。本例只有手动触发，首次推送后不会自动运行。参见 [手动运行工作流](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 
-也可以完全使用网页：在你拥有写权限的 GitHub 仓库里上传本文，再通过 **Add file → Create new file** 创建 `.github/workflows/playground.yml`，复制上面的 YAML 并提交到默认分支。随后按同样的 Actions 页面操作运行。
+也可以完全使用网页：在你拥有写权限的 GitHub 仓库里上传本文，再通过 **Add file → Create new file** 创建 `.github/workflows/workflow-playground-hello.yaml`，复制上面的 YAML 并提交到默认分支。随后按同样的 Actions 页面操作运行。
 
 ## 7. 两个动手实验
 
@@ -196,9 +232,10 @@ on:
 这样既保留手动按钮，也会在推送到 `main` 时自动运行。修改本地文件后执行：
 
 ```bash
-git add .github/workflows/playground.yml
+git add .github/workflows/workflow-playground-hello.yaml
 git commit -m "Run playground on pushes to main"
-git push
+# 出现 Password 提示时粘贴 PAT
+git -c credential.helper= -c credential.username=iamxuxiao-nvidia push
 ```
 
 上述命令在本地仓库目录执行，且已按第 6 节配置远程仓库及首次推送。之后刷新 GitHub 的 Actions 页面观察自动出现的运行记录。触发规则见 [工作流事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)。

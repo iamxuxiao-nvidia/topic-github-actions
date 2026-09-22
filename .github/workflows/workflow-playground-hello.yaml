@@ -1,4 +1,4 @@
-name: GitHub Actions Playground
+name: GitHub Actions Playground - Hello
 
 # 在 GitHub 网页上点击 Run workflow 手动触发
 on:
