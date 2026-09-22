@@ -312,6 +312,7 @@ jobs:
 docker build --tag bazel-hello-world:local .
 docker run --rm \
   --user "$(id -u):$(id -g)" \
+  --env USER=bazel \
   --env HOME=/tmp \
   --volume "$(pwd):/workspace" \
   bazel-hello-world:local \
@@ -322,7 +323,7 @@ docker run --rm \
   '
 ```
 
-镜像中已经安装 Bazel 和编译器；构建镜像需要联网下载系统软件包与 Bazel，首次编译还需要下载构建规则。`--user` 使用本机用户的 UID/GID，避免在挂载目录生成 root 所有的文件；`HOME=/tmp` 为该用户提供可写的临时目录。Bazel 缓存位于容器内，`--rm` 会在退出时删除容器及缓存。参见 [Docker run 参数说明](https://docs.docker.com/reference/cli/docker/container/run/)。
+镜像中已经安装 Bazel 和编译器；构建镜像需要联网下载系统软件包与 Bazel，首次编译还需要下载构建规则。`--user` 使用本机用户的 UID/GID，避免在挂载目录生成 root 所有的文件；容器内可能没有该 UID 对应的用户记录，因此显式设置 `USER=bazel`，供 Bazel 获取用户名，避免启动时退出；`HOME=/tmp` 为该用户提供可写的临时目录。Bazel 缓存位于容器内，`--rm` 会在退出时删除容器及缓存。参见 [Docker run 参数说明](https://docs.docker.com/reference/cli/docker/container/run/)。
 
 也可直接在本机安装 [Bazelisk](https://github.com/bazelbuild/bazelisk#installation) 和 C++ 编译器。macOS 可以使用 `brew install bazelisk`，并通过 `xcode-select --install` 安装命令行开发工具；Ubuntu 可以安装 `build-essential`，再按 Bazelisk 官方说明安装启动器。
 
@@ -374,6 +375,7 @@ jobs:
           output=$(
             docker run --rm \
               --user "$(id -u):$(id -g)" \
+              --env USER=bazel \
               --env HOME=/tmp \
               --volume "${GITHUB_WORKSPACE}:/workspace" \
               bazel-hello-world:local \

@@ -28,6 +28,7 @@ jobs:
           output=$(
             docker run --rm \
               --user "$(id -u):$(id -g)" \
+              --env USER=bazel \
               --env HOME=/tmp \
               --volume "${GITHUB_WORKSPACE}:/workspace" \
               bazel-hello-world:local \
