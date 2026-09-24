@@ -4,10 +4,11 @@ name: GitHub Actions Playground - Two Jobs
 on:
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 jobs:
-  # 两个没有依赖关系的任务可以并行运行。
+  # 两个计算任务和复用的 Hello 工作流没有依赖关系，可以并行运行。
   job_a:
     name: Job A - 等待 5 秒
     runs-on: ubuntu-latest
@@ -40,10 +41,14 @@ jobs:
           echo "value=20" >> "$GITHUB_OUTPUT"
           echo "Job B 完成，结果为 20。"
 
+  hello:
+    name: Hello - 复用已有工作流
+    uses: ./.github/workflows/workflow-playground-hello.yaml
+
   reduce:
-    name: Reduce - 等待两个任务后汇总
-    # 只有两个任务都成功完成，才会执行 reduce。
-    needs: [job_a, job_b]
+    name: Reduce - 等待三个分支后汇总
+    # 两个计算任务和 Hello 检查都成功后，才会执行 reduce。
+    needs: [job_a, job_b, hello]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -58,4 +63,4 @@ jobs:
           echo "Reduce: $VALUE_A + $VALUE_B = $total" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Done
-        run: echo "Done：两个并行任务和汇总步骤都已完成。"
+        run: echo "Done：三个并行分支和汇总步骤都已完成。"

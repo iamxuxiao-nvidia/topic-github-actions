@@ -1,0 +1,30 @@
+name: CI
+
+# Run on every push to the repository.
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check README
+        run: test -s README.md
+
+      - name: Build and run C++ example
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror hello-world/main.cc -o "$RUNNER_TEMP/hello-world"
+          output="$("$RUNNER_TEMP/hello-world")"
+          test "$output" = 'Hello, world!'
+          echo "$output"
+          echo 'CI passed: README exists and C++ example prints Hello, world!' >> "$GITHUB_STEP_SUMMARY"
