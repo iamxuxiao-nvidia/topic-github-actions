@@ -6,7 +6,8 @@ GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，�
 - [2. 为什么使用 GitHub Actions](#2-为什么使用-github-actions)：价值、GitLab CI 语法对照和 Bash 的取舍。
 - [3. 发布到 GitHub](#3-发布到-github)：提交代码、推送仓库、首次运行和推送后自动运行 CI。
 - [4. 工作流示例](#4-工作流示例)：Hello、Wait、Two Jobs、Bazel、CI、自定义镜像、动手实验和 REST API 触发。
-- [5. 工作流语法](#5-工作流语法)：带注释的 CI 示例、常用字段、表达式、章节与工作流结构类图。
+- [5. 创建 Pull Request](#5-创建-pull-request)：创建分支、推送提交并发起 PR。
+- [6. 工作流语法](#6-工作流语法)：带注释的 CI 示例、常用字段、表达式、章节与工作流结构类图。
 
 ## 1. 基础
 
@@ -310,7 +311,7 @@ jobs:
 | [GitHub Actions Playground - Hello World Bazel](.github/workflows/workflow-hello-world-bazel.yaml) | 推送到 `main`、向 `main` 提交 PR、手动 | `hello-world-bazel` | 构建预装 Bazel 7 的自定义 Docker 镜像，在容器中编译并运行 C++ 程序，检查输出为 `Hello, world!`，并写入运行页 Summary。 |
 | [CI](.github/workflows/ci.yaml) | 推送到任意分支 | `check` | 检查 README 非空，直接编译并运行 C++ Hello World，验证输出并写入运行页 Summary。 |
 
-第 4.4 节介绍 Bazel 项目的自定义镜像、本地构建、完整工作流和 Runner 规格选择；第 4.5 节另介绍如何发布镜像并用于容器 Job；第 4.6 节提供基于 Hello 的动手实验。
+第 4.4 节介绍 Bazel 项目的自定义镜像、本地构建、完整工作流和 Runner 规格选择；第 4.5 节另介绍如何发布镜像并用于容器 Job；第 4.6 节提供基于 Hello 的动手实验；第 4.8 节给出推送后自动运行的 CI 配置。
 
 ### 4.1 Hello：打印环境并检查文档
 
@@ -735,11 +736,83 @@ unset GITHUB_TOKEN
 
 成功的触发请求返回 HTTP 200，并包含 `workflow_run_id`、`run_url` 和 `html_url`。紧接着查询时可能仍显示 `queued` 或 `in_progress`；稍后重复最后一条查询，直到 `status` 为 `completed`，再看 `conclusion` 是否为 `success`。运行页的 `wait` Job 日志应依次显示开始、等待 5 秒和继续执行。参见 [创建 workflow dispatch 事件](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event) 和 [查询工作流运行](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run)。
 
-## 5. 工作流语法
+### 4.8 CI：推送后检查 README 和 C++ 程序
+
+仓库中的 [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) 使用 `push` 事件触发；每次向仓库推送提交后，`check` Job 会检查 README、编译并运行 C++ 示例，再验证程序输出。完整配置如下：
+
+```yaml
+name: CI
+
+# Run on every push to the repository.
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check README
+        run: test -s README.md
+
+      - name: Build and run C++ example
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror hello-world/main.cc -o "$RUNNER_TEMP/hello-world"
+          output="$("$RUNNER_TEMP/hello-world")"
+          test "$output" = 'Hello, world!'
+          echo "$output"
+          echo 'CI passed: README exists and C++ example prints Hello, world!' >> "$GITHUB_STEP_SUMMARY"
+```
+
+`contents: read` 为检出代码提供只读权限。`test -s README.md` 要求文档存在且非空；编译命令启用警告并将警告视为错误。任一步失败都会使 Job 失败；全部通过后，最后一步把结果写到运行页的 Summary。第 3.5 节展示了推送后在 Actions 页面查看运行记录的方法。
+
+## 5. 创建 Pull Request
+
+下面以修改 `README.md` 为例，从 `main` 创建分支并向 `main` 发起 PR。先完成第 3.2 节的远程仓库与推送认证配置；使用命令行创建 PR 还需要安装 [GitHub CLI](https://cli.github.com/) 并运行一次 `gh auth login`。
+
+### 5.1 创建分支、提交并推送
+
+在本项目目录执行。创建分支后先修改并保存 `README.md`，再运行提交和推送命令：
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c docs/pr-example
+
+# 修改并保存 README.md 后执行
+git add README.md
+git commit -m "Add pull request example"
+git push -u origin docs/pr-example
+```
+
+`git push -u origin docs/pr-example` 把分支发布到 GitHub，并设置上游分支；它本身不会创建 PR。如果 HTTPS 推送需要 PAT，可按第 3.2 节的临时凭据助手写法，将其中的 `push -u origin main` 改成 `push -u origin docs/pr-example`。
+
+### 5.2 创建并查看 PR
+
+推送成功后，在同一目录执行：
+
+```bash
+gh pr create --base main --head docs/pr-example \
+  --title "Add pull request example" \
+  --body "Document how to push a branch and open a PR."
+```
+
+`--base main` 指定合入目标，`--head docs/pr-example` 指定刚推送的分支；命令成功后会打印 PR 链接。未安装 GitHub CLI 时，也可以打开推送输出中的 `https://github.com/iamxuxiao-nvidia/topic-github-actions/pull/new/docs/pr-example`，填写标题和说明后点击 **Create pull request**。PR 创建后，继续向同一分支推送新提交会更新该 PR，无需再次运行 `gh pr create`。参见 [GitHub CLI 的 `gh pr create` 文档](https://cli.github.com/manual/gh_pr_create)。
+
+## 6. 工作流语法
 
 工作流文件必须放在 `.github/workflows/` 目录，并使用 `.yml` 或 `.yaml` 扩展名。下面的例子可保存为 `.github/workflows/readme-ci.yml`：推送到 `main`、向 `main` 提交 PR，或手动点击 **Run workflow** 时，检查 README 并写入运行摘要。
 
-### 5.1 带注释的完整示例
+### 6.1 带注释的完整示例
 
 ```yaml
 # 文件：.github/workflows/readme-ci.yml
@@ -786,7 +859,7 @@ jobs:
         run: echo "CI 完成"     # run 直接执行 shell 命令
 ```
 
-### 5.2 从外到内读 YAML
+### 6.2 从外到内读 YAML
 
 | 位置 | 作用 | 本例 |
 |---|---|---|
@@ -802,7 +875,7 @@ jobs:
 
 YAML 用**空格缩进**表示归属，用 `-` 表示列表项。例如，`steps` 缩进在 `check` 下面，三个 `- name` 属于该 Job。`run: |` 保留后续多行命令的换行；命令必须再缩进一级。`pull_request.branches` 过滤的是 PR 的**目标分支**。本例先用 `checkout` 下载仓库，后面的 `run` 才能读取 `README.md`。
 
-### 5.3 表达式、条件和跨 Job 数据
+### 6.3 表达式、条件和跨 Job 数据
 
 ```yaml
 # 以下是某个 Job 中的三个步骤，可放进 steps 列表
@@ -822,9 +895,9 @@ YAML 用**空格缩进**表示归属，用 `-` 表示列表项。例如，`steps
 
 每个 Job 有独立的运行环境；`needs` 只规定顺序，不会共享本地文件。跨 Job 传小型文本结果用 Job outputs，传文件用 artifacts。更多字段和完整规则见 [GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)。
 
-### 5.4 UML 类图：指南章节与工作流结构
+### 6.4 UML 类图：指南章节与工作流结构
 
-**指南章节。** 下图把本 README 的五个主章节表示为类。每个三级标题是所属类的属性；4.5 的三种镜像示例与 4.6 的两个实验等四级标题以缩进属性表示。这样可以从图中找到本指南的全部编号章节和工作流示例。
+**指南章节。** 下图把本 README 的六个主章节表示为类。每个三级标题是所属类的属性；4.5 的三种镜像示例与 4.6 的两个实验等四级标题以缩进属性表示。这样可以从图中找到本指南的全部编号章节和工作流示例。
 
 ![README 各章节和示例的 UML 类图](docs/images/readme-sections-uml.svg)
 

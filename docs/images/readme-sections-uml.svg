@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1250" height="950" viewBox="0 0 1250 950" role="img" aria-labelledby="title description">
+<svg xmlns="http://www.w3.org/2000/svg" width="1250" height="1235" viewBox="0 0 1250 1235" role="img" aria-labelledby="title description">
   <title id="title">README section UML class diagram</title>
-  <desc id="description">Five classes correspond to the five numbered README sections. Each class lists its smaller numbered sections and examples as attributes; fourth-level headings are indented.</desc>
-  <rect width="1250" height="950" fill="#ffffff"/>
+  <desc id="description">Six classes correspond to the six numbered README sections. Each class lists its smaller numbered sections and examples as attributes; fourth-level headings are indented.</desc>
+  <rect width="1250" height="1235" fill="#ffffff"/>
   <text x="40" y="43" fill="#172b4d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="27" font-weight="700">README 章节类图</text>
   <text x="40" y="71" fill="#53657d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="15">类名 = 二级标题；属性 = 三级标题；缩进属性 = 四级标题</text>
   <rect x="40" y="100" width="560" height="235" rx="8" fill="#f7fafc" stroke="#375a7f" stroke-width="2"/>
@@ -39,11 +39,17 @@
   <text x="700" y="751" fill="#53657d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="16">+ 实验 A：故意失败，再修复</text>
   <text x="700" y="782" fill="#53657d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="16">+ 实验 B：每次推送到 main 都自动运行</text>
   <text x="674" y="813" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 4.7 使用 REST API 触发 Wait 工作流</text>
+  <text x="674" y="844" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 4.8 CI：推送后检查 README 和 C++ 程序</text>
   <rect x="40" y="670" width="560" height="235" rx="8" fill="#f7fafc" stroke="#375a7f" stroke-width="2"/>
   <path d="M 48 670 H 592 Q 600 670 600 678 V 723 H 40 V 678 Q 40 670 48 670 Z" fill="#24496d"/>
-  <text x="60" y="705" fill="#ffffff" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700">5. 工作流语法</text>
-  <text x="64" y="757" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.1 带注释的完整示例</text>
-  <text x="64" y="788" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.2 从外到内读 YAML</text>
-  <text x="64" y="819" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.3 表达式、条件和跨 Job 数据</text>
-  <text x="64" y="850" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.4 UML 类图：指南章节与工作流结构</text>
+  <text x="60" y="705" fill="#ffffff" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700">5. 创建 Pull Request</text>
+  <text x="64" y="757" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.1 创建分支、提交并推送</text>
+  <text x="64" y="788" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 5.2 创建并查看 PR</text>
+  <rect x="40" y="955" width="560" height="235" rx="8" fill="#f7fafc" stroke="#375a7f" stroke-width="2"/>
+  <path d="M 48 955 H 592 Q 600 955 600 963 V 1008 H 40 V 963 Q 40 955 48 955 Z" fill="#24496d"/>
+  <text x="60" y="990" fill="#ffffff" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="21" font-weight="700">6. 工作流语法</text>
+  <text x="64" y="1042" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 6.1 带注释的完整示例</text>
+  <text x="64" y="1073" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 6.2 从外到内读 YAML</text>
+  <text x="64" y="1104" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 6.3 表达式、条件和跨 Job 数据</text>
+  <text x="64" y="1135" fill="#26384d" font-family="Arial, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="18">+ 6.4 UML 类图：指南章节与工作流结构</text>
 </svg>
