@@ -1,24 +1,33 @@
 # GitHub Actions 练习仓库
 
-GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。本指南从基础概念、发布到 GitHub，再到可复制的工作流示例逐步介绍。
+GitHub Actions 让你把自动化流程写进仓库：发生某个事件后，系统安排执行机器，按配置下载代码、运行测试或编译，并展示日志和结果。本指南从基础概念、使用价值、发布到 GitHub，再到可复制的工作流示例逐步介绍。
 
-- [1. 基础](#1-基础)：术语、费用、执行环境与设计理念。
-- [2. 发布到 GitHub](#2-发布到-github)：提交代码、推送仓库和首次运行。
-- [3. 工作流示例](#3-工作流示例)：Hello、Wait、Two Jobs、Bazel、CI、自定义镜像、动手实验和 REST API 触发。
-- [4. 工作流语法](#4-工作流语法)：带注释的 CI 示例、常用字段、表达式、章节与工作流结构类图。
+- [1. 基础](#1-基础)：术语、费用和 Runner。
+- [2. 为什么使用 GitHub Actions](#2-为什么使用-github-actions)：价值、GitLab CI 语法对照和 Bash 的取舍。
+- [3. 发布到 GitHub](#3-发布到-github)：提交代码、推送仓库、首次运行和推送后自动运行 CI。
+- [4. 工作流示例](#4-工作流示例)：Hello、Wait、Two Jobs、Bazel、CI、自定义镜像、动手实验和 REST API 触发。
+- [5. 创建 Pull Request](#5-创建-pull-request)：创建分支、推送提交并发起 PR。
+- [6. 工作流语法](#6-工作流语法)：带注释的 CI 示例、常用字段、表达式、章节与工作流结构类图。
 
 ## 1. 基础
 
 ### 1.1 术语
 
-| 名称 | 中文理解 | 本仓库或常见示例 |
+| 术语（英文） | 中文理解 | 本仓库或常见示例 |
 |---|---|---|
-| Workflow | 一整套自动化流程，由 YAML 文件定义 | `.github/workflows/workflow-playground-hello.yaml` |
+| Workflow | 一整套自动化流程，由 YAML 文件定义 | [Hello 工作流](.github/workflows/workflow-playground-hello.yaml) |
 | Event | 触发流程的事件 | `workflow_dispatch`：手动触发；`push`：推送代码 |
 | Job | 流程中的一个任务 | `hello` |
 | Step | 任务内的一步操作 | 下载代码、查看环境、检查文档 |
 | Runner | 实际执行任务的机器或运行环境 | 本例使用 GitHub 提供的 Ubuntu 虚拟机 |
-| Action | 可重复使用的操作组件 | `actions/checkout@v6` 下载代码；`actions/setup-node@v7` 配置 Node.js；`actions/cache@v6` 缓存依赖；`actions/upload-artifact@v7` 保存构建产物 |
+| Action | 可重复使用的操作组件 | 常用 Action 见下方 |
+
+常用 Action：
+
+- `actions/checkout@v6`：下载代码。
+- `actions/setup-node@v7`：配置 Node.js。
+- `actions/cache@v6`：缓存依赖。
+- `actions/upload-artifact@v7`：保存构建产物。
 
 `uses:` 调用现成的 Action；`run:` 执行你写的命令。工作流可以有多个 Job；没有依赖关系的 Job 可并行运行，同一 Job 内本例的 Steps 按顺序执行。参见 [GitHub Actions 核心概念](https://docs.github.com/en/actions/get-started/understand-github-actions)。
 
@@ -71,20 +80,96 @@ Runner 按工作流配置下载代码、执行命令 → 返回日志和结果
 
 自托管 Runner 必须先安装、注册并保持在线，单纯把配置改成 `runs-on: self-hosted` 不会自动创建机器。参见 [GitHub 托管 Runner](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners) 与 [自托管 Runner](https://docs.github.com/en/actions/concepts/runners/self-hosted-runners)。
 
-### 1.4 设计理念：让自动化跟随代码变化
+## 2. 为什么使用 GitHub Actions
 
-可以把 GitHub Actions 理解为“事件触发的任务编排”：仓库中保存工作流定义，GitHub 根据事件启动运行，再把 Job 分配给 Runner 执行。这样，自动化规则与代码一起接受版本控制，也可以通过 PR 评审；配置相应触发条件后，每次代码变更都能执行同一套检查。参见 [GitHub Actions 核心概念](https://docs.github.com/en/actions/get-started/understand-github-actions)。
+GitHub Actions 把触发事件、Runner 选择、Job 依赖和令牌权限写进仓库里的 YAML；构建和测试命令仍由项目决定。工作流随代码版本化，PR 可以同时评审代码和检查规则。它也能响应发布、Issue 等仓库事件，因此用途不限于编译测试。[GitHub 工作流概念](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows)介绍了触发、Job 和步骤的关系。
 
-- **用事件决定何时运行。** `on:` 指定 `push`、`pull_request`、`workflow_dispatch` 等触发条件；例如本仓库的 Bazel 工作流既可随代码变更自动运行，也可手动运行。
-- **用 Job 明确依赖关系。** 没有依赖的 Job 默认并行；需要等待上游结果时，用 `needs` 明确连接。Two Jobs 示例中的 `job_a` 和 `job_b` 并行，`reduce` 等待两者完成后汇总结果。参见 [工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobs)。
-- **把执行环境与数据流写清楚。** 每个 Job 在自己的 Runner 环境中运行；同一 Job 的步骤可顺序使用工作目录中的文件。跨 Job 传递小型结果用 Job outputs，传递文件或保留构建产物用 artifacts，不能假设两个 Job 共享本地文件。参见 [跨 Job 传递输出](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs) 与 [工作流制品](https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts)。
-- **复用操作，并收紧权限。** `uses:` 引用现成的 Action，`run:` 保留项目自己的命令；重复的流程还可以提取为可复用工作流。第 3.3 节的 Two Jobs 工作流就调用了第 3.1 节的 Hello 工作流。通过 `permissions` 只授予 `GITHUB_TOKEN` 所需权限；本仓库只读取代码的示例使用 `contents: read`。参见 [复用工作流](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) 与 [配置 `GITHUB_TOKEN` 权限](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token)。
+### 2.1 实际价值
 
-## 2. 发布到 GitHub
+- **把反馈放进 PR。** 工作流在 PR 上运行时，检查结果、日志和失败步骤会显示在对应提交与 PR 上；仓库配置必需状态检查后，可以要求检查通过才合并。[GitHub 状态检查](https://docs.github.com/en/pull-requests/reference/status-checks)
+- **把调度和依赖写清楚。** `on` 定义事件，`runs-on` 选择执行环境，`needs` 描述 Job 的先后关系，`strategy.matrix` 可以展开多种环境组合；读 YAML 就能看到流程形状。[GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+- **复用常见操作，限制访问范围。** `uses` 引入已有 Action，`workflow_call` 复用整套工作流；`permissions` 指定 `GITHUB_TOKEN` 权限。跨 Job 的值或文件分别用 outputs、artifacts 显式传递。[复用工作流](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows) · [传递 Job 输出](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs)
+
+这些价值属于 CI/CD 平台的一般能力；GitLab CI 也提供触发规则、依赖、复用和执行日志。选择平台时还要看代码托管位置、现有 Runner、权限模型和团队熟悉程度。
+
+### 2.2 与 GitLab CI 的语法对照
+
+下面两个片段表达同一意图：推送到 `main` 或向 `main` 提交 PR/MR 时检查 `README.md`。
+
+**GitHub Actions**（`.github/workflows/readme-check.yml`）：
+
+```yaml
+name: README check
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: test -s README.md
+```
+
+**GitLab CI**（`.gitlab-ci.yml`）：
+
+```yaml
+check:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"'
+  script:
+    - test -s README.md
+```
+
+| 目的 | GitHub Actions | GitLab CI |
+|---|---|---|
+| 文件位置 | `.github/workflows/*.yml`，可有多个工作流 | 通常从 `.gitlab-ci.yml` 开始，可用 `include` 拆分 |
+| 触发和过滤 | `on.push`、`on.pull_request`、`branches` | `workflow: rules` 控制整个 Pipeline；Job 的 `rules` 控制该 Job |
+| 执行单位 | `jobs.<id>.steps`；一个 Job 可有多个 `uses` / `run` 步骤 | 顶层 Job 通常用 `script` 执行命令 |
+| Runner 与镜像 | `runs-on` 选 Runner，`container` 可指定 Job 容器 | Runner `tags` 选机器，`image` 可指定容器镜像 |
+| 依赖与复用 | `needs`；`uses` 调用 Action 或可复用工作流 | `stages` / `needs`；`include`、`extends`、CI/CD components 等 |
+
+GitLab Runner 通常按项目的 Git strategy 准备工作目录；GitHub 示例用 `actions/checkout` 显式下载代码。GitLab 也提供 Functions/`run` 步骤，表格描述的是常见 `script` 写法，并非 GitLab 的全部语法。参见 [GitLab YAML 参考](https://docs.gitlab.com/ci/yaml/)、[GitLab Runner 的 Git strategy](https://docs.gitlab.com/ci/runners/configure_runners/) 和 [GitLab Functions](https://docs.gitlab.com/ci/functions/)。
+
+### 2.3 不喜欢 Bash 时，工作流替我们做了什么？
+
+| 原本容易写成 Bash 的事 | 工作流中的写法 | 取舍 |
+|---|---|---|
+| 轮询事件、判断分支、手动安排任务 | `on`、`if`、`needs`、`matrix` | 触发和依赖可查看、可评审；Job 结构需先在 YAML 中声明 |
+| 在一个长脚本里串联安装、构建、上传 | `steps`、`uses`、可复用工作流 | 常见操作能复用，每步有独立日志；跨步骤状态要明确传递 |
+| 在一个 shell 中保留 `cd` 和临时变量 | 同一 Job 共享文件；后续步骤用 `working-directory`、`GITHUB_ENV` 或 outputs | 每个 `run` 步骤启动新 shell，`cd` 和普通 shell 变量不会自动延续 |
+
+GitHub Actions 仍允许我们运行 Bash：`run` 能执行 Runner 上可用的命令，多行 `run: |` 内也能写完整脚本。它把触发、调度和数据传递移到 YAML；具体构建逻辑可以放在版本化的程序或脚本里。若只是想避免 Bash，还能在步骤中选择 Python（见 [GitHub `shell` 语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell)）。以下为 Job 片段：
+
+```yaml
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: 用 Python 检查文档
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("README.md")
+          if not path.is_file() or path.stat().st_size == 0:
+              raise SystemExit("README.md 不存在或为空")
+```
+
+`uses` 能减少工作流里自己写的命令，但 Action 内部仍可能执行程序或 shell；真正复杂的项目逻辑仍需用合适的语言实现。GitLab 的 `script` 同样可以调用 Python 等程序。对两种平台而言，YAML 负责流程，代码负责业务逻辑。[GitHub 添加脚本](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/add-scripts) · [GitLab 脚本说明](https://docs.gitlab.com/ci/yaml/script/)
+
+## 3. 发布到 GitHub
 
 本地保存 YAML 后，需要将文件提交并推送到 GitHub，才能在那里触发工作流。以下命令在本项目目录执行，使用 `main` 分支。
 
-### 2.1 准备本地提交
+### 3.1 准备本地提交
 
 本地仓库初始化不需要提交署名，但创建 Commit 需要。若 Git 尚未配置 `user.name` 和 `user.email`，先将下面两个占位值替换为你的提交署名及 GitHub 已验证邮箱（或账户提供的 noreply 邮箱）。这些命令只设置当前仓库：
 
@@ -100,7 +185,7 @@ git commit -m "Add GitHub Actions playground and Chinese guide"
 
 这里的 Git 署名配置不等于登录 GitHub；推送时还需要可用的 GitHub 身份认证。
 
-### 2.2 创建远程仓库并推送
+### 3.2 创建远程仓库并推送
 
 首次发布时，在 [GitHub 创建仓库页面](https://github.com/new) 新建名为 `topic-github-actions` 的空仓库，按需要选择公开或私有。因为本地已有文件，远程创建时不要额外勾选 README、`.gitignore` 或 License。若已有远程仓库，直接使用现有仓库。
 
@@ -121,7 +206,7 @@ GIT_TOKEN="$(cat .github-token)" git \
 
 `GIT_TOKEN="$(cat .github-token)"` 只在这次 Git 进程中提供 Token；两个 `-c credential.helper` 参数先清除已配置的助手，再使用只响应本次读取请求的临时助手。Token 不会打印到终端，也不会写入远程 URL 或 Git 配置。后续推送可以复用同一条命令。参见 [GitHub Token 命令行用法](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#using-a-personal-access-token-on-the-command-line) 和 [Git 凭据助手用法](https://git-scm.com/docs/gitfaq#Documentation/gitfaq.txt-HowdoIreadapasswordortokenfromanenvironmentvariable)。
 
-### 2.3 运行工作流并查看日志
+### 3.3 运行工作流并查看日志
 
 1. 打开 GitHub 仓库，确认默认分支为 `main`，且能看到 `.github/workflows/workflow-playground-hello.yaml`。
 2. 点击 **Actions → GitHub Actions Playground - Hello → Run workflow**。
@@ -137,9 +222,9 @@ GIT_TOKEN="$(cat .github-token)" git \
 
 手动触发要求工作流使用 `workflow_dispatch`，该工作流文件已存在于默认分支，并且操作人有仓库写权限。Hello、Wait、Two Jobs 的独立运行只有手动触发；Hello 也会被 Two Jobs 调用。Bazel 工作流同时支持自动与手动触发，首次推送到 `main` 后即可看到构建。参见 [手动运行工作流](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow)。
 
-也可以完全使用网页：在你拥有写权限的 GitHub 仓库里上传 `README.md`，再通过 **Add file → Create new file** 创建 `.github/workflows/workflow-playground-hello.yaml`，复制第 3 节中 Hello 的 YAML 并提交到默认分支。随后按同样的 Actions 页面操作运行。
+也可以完全使用网页：在你拥有写权限的 GitHub 仓库里上传 `README.md`，再通过 **Add file → Create new file** 创建 `.github/workflows/workflow-playground-hello.yaml`，复制第 4 节中 Hello 的 YAML 并提交到默认分支。随后按同样的 Actions 页面操作运行。
 
-### 2.4 页面截图：选择、运行与查看工作流
+### 3.4 页面截图：选择、运行与查看工作流
 
 **截图 1：工作流列表（All workflows）**
 
@@ -155,7 +240,7 @@ GIT_TOKEN="$(cat .github-token)" git \
 
 **截图 3：单次工作流运行详情（Summary）**
 
-点击一条运行记录，进入该次运行的 **Summary** 页面，查看整体状态、各个 Job 及依赖关系。截图来自加入 Hello 复用前的一次运行：Job A 和 Job B 已完成，后续的 Reduce 正在运行。当前工作流还包含一个并行的 Hello 分支，见第 3.3 节；点击左侧 Job 可查看具体步骤和日志。
+点击一条运行记录，进入该次运行的 **Summary** 页面，查看整体状态、各个 Job 及依赖关系。截图来自加入 Hello 复用前的一次运行：Job A 和 Job B 已完成，后续的 Reduce 正在运行。当前工作流还包含一个并行的 Hello 分支，见第 4.3 节；点击左侧 Job 可查看具体步骤和日志。
 
 ![截图 3：单次运行的 Summary 页面，展示 Job A、Job B 汇合到 Reduce 的任务图](docs/images/actions-workflow-run-summary.png)
 
@@ -165,7 +250,56 @@ GIT_TOKEN="$(cat .github-token)" git \
 
 ![截图 4：hello 任务详情与可展开的步骤日志列表](docs/images/actions-job-details-logs.png)
 
-## 3. 工作流示例
+### 3.5 推送提交后自动运行 CI（ci.yaml）
+
+本项目已有 [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml)，与本 README 同属一个仓库。它在 Actions 页面显示为 **CI**，通过 `push` 事件自动触发；没有设置分支或路径过滤，因此不限于 `main`，也不限于代码文件的修改。当前文件没有配置 `workflow_dispatch`，运行方式是推送提交。
+
+完整配置如下，与仓库中的 `ci.yaml` 一致：
+
+```yaml
+name: CI
+
+# Run on every push to the repository.
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check README
+        run: test -s README.md
+
+      - name: Build and run C++ example
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror hello-world/main.cc -o "$RUNNER_TEMP/hello-world"
+          output="$("$RUNNER_TEMP/hello-world")"
+          test "$output" = 'Hello, world!'
+          echo "$output"
+          echo 'CI passed: README exists and C++ example prints Hello, world!' >> "$GITHUB_STEP_SUMMARY"
+```
+
+`check` Job 使用 `ubuntu-latest`，最多运行 10 分钟，依次下载仓库代码、检查 `README.md` 存在且非空，再直接使用 C++ 编译器编译 `hello-world/main.cc`。程序输出必须等于 `Hello, world!`，通过后将结果写入运行页 Summary；这里的编译直接在 Runner 上执行，无需构建 Bazel 的 Docker 镜像。
+
+按第 3.2 节推送提交后，打开 **Actions → CI**，选择对应提交的运行记录，再点击 `check` 查看各步骤日志。仅在本地创建 Commit 不会触发远程工作流。
+
+**截图 5：提交推送后自动触发工作流**
+
+截图中的 **All workflows** 汇总页面显示提交消息 `add ci.yaml`、分支 `main` 和 `Commit … pushed by …`，该条运行处于 **In progress**。左侧已列出 **CI**；截图中可见的这条记录属于 **GitHub Actions Playground - Hello World Bazel #6**，不能据此判断 CI 的运行结果。因为 Bazel 工作流也配置了推送到 `main` 时运行，同一次推送可以触发 CI 和 Bazel 两个工作流；点击左侧 **CI** 可单独查看 CI 的记录和结果。
+
+![截图 5：推送 add ci.yaml 提交后的 Actions 页面，左侧列出 CI，列表中显示正在运行的 Bazel 工作流](docs/images/actions-commit-pushed.png)
+
+## 4. 工作流示例
 
 本项目的 `.github/workflows/` 目录包含以下五个工作流，均使用 `ubuntu-latest` Runner。前四个支持 `workflow_dispatch` 手动触发；Bazel 工作流还会在推送到 `main` 或向 `main` 提交 PR 时自动运行，新增加的 CI 工作流则在任何分支收到 `push` 时运行。
 
@@ -177,9 +311,9 @@ GIT_TOKEN="$(cat .github-token)" git \
 | [GitHub Actions Playground - Hello World Bazel](.github/workflows/workflow-hello-world-bazel.yaml) | 推送到 `main`、向 `main` 提交 PR、手动 | `hello-world-bazel` | 构建预装 Bazel 7 的自定义 Docker 镜像，在容器中编译并运行 C++ 程序，检查输出为 `Hello, world!`，并写入运行页 Summary。 |
 | [CI](.github/workflows/ci.yaml) | 推送到任意分支 | `check` | 检查 README 非空，直接编译并运行 C++ Hello World，验证输出并写入运行页 Summary。 |
 
-第 3.4 节介绍 Bazel 项目的自定义镜像、本地构建、完整工作流和 Runner 规格选择；第 3.5 节另介绍如何发布镜像并用于容器 Job；第 3.6 节提供基于 Hello 的动手实验。
+第 4.4 节介绍 Bazel 项目的自定义镜像、本地构建、完整工作流和 Runner 规格选择；第 4.5 节另介绍如何发布镜像并用于容器 Job；第 4.6 节提供基于 Hello 的动手实验；第 4.8 节给出推送后自动运行的 CI 配置。
 
-### 3.1 Hello：打印环境并检查文档
+### 4.1 Hello：打印环境并检查文档
 
 保存为 `.github/workflows/workflow-playground-hello.yaml`。`workflow_dispatch` 允许手动运行，`workflow_call` 允许其他工作流复用它；两种触发方式共用下面的 `hello` Job。下面的配置与本仓库文件功能一致，额外添加了解释性注释：
 
@@ -220,7 +354,7 @@ jobs:
 
 工作流文件必须放在 `.github/workflows/` 中，并使用 `.yml` 或 `.yaml` 扩展名。本例使用 `actions/checkout@v6` 下载仓库代码。参见 [官方快速入门](https://docs.github.com/en/actions/get-started/quickstart) 和 [工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)。
 
-### 3.2 Wait：等待后继续执行
+### 4.2 Wait：等待后继续执行
 
 保存为 `.github/workflows/workflow-playground-wait.yaml`：
 
@@ -251,7 +385,7 @@ jobs:
 
 `sleep 5` 会暂停当前步骤 5 秒；步骤结束后，Runner 才执行下一步并打印完成消息。这个例子无需读取仓库文件，因此没有下载代码步骤，并使用 `permissions: {}` 关闭仓库 Token 权限。
 
-### 3.3 Two Jobs：并行执行并汇总
+### 4.3 Two Jobs：并行执行并汇总
 
 保存为 `.github/workflows/workflow-two-jobs.yaml`：
 
@@ -341,7 +475,7 @@ jobs:
 
 两个计算分支通过 `$GITHUB_OUTPUT` 写出步骤结果，再用 Job 的 `outputs` 暴露给下游。`reduce` 通过 `needs.job_a.outputs.value` 和 `needs.job_b.outputs.value` 接收结果；相加后打印日志，并写入工作流运行页的 Summary。参见 [Job 依赖](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-jobs)、[跨 Job 传递输出](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs) 和 [复用工作流](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)。
 
-### 3.4 Bazel：编译并运行 C++ Hello World
+### 4.4 Bazel：编译并运行 C++ Hello World
 
 第四个工作流是 [.github/workflows/workflow-hello-world-bazel.yaml](.github/workflows/workflow-hello-world-bazel.yaml)。它在 Ubuntu Runner 上下载代码，使用仓库中的 Dockerfile 构建预装 Bazel 7 的自定义镜像，再通过 `docker run` 在容器中编译、运行程序并检查输出。
 
@@ -449,11 +583,11 @@ runs-on:
 
 GitHub 列出的这种规格还包括 600 GB SSD。`ubuntu-24.04-16core` 是 Runner 标签，单独写这段 YAML 不会创建机器；仓库中没有匹配的 Runner 时，Job 会排队等待。Larger runners 面向 GitHub Team 或 Enterprise Cloud 的组织和企业，并按用量收费。若使用自己管理的高内存机器，可为其注册 `high-memory` 标签，改用 `runs-on: [self-hosted, linux, x64, high-memory]`；标签同样需要对应的机器实际具备所需资源。参见 [Larger runner 规格](https://docs.github.com/en/actions/reference/runners/larger-runners)、[选择 Larger runner](https://docs.github.com/en/actions/how-tos/manage-runners/larger-runners/use-larger-runners) 和 [Runner 选择语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on)。
 
-### 3.5 使用自定义容器镜像
+### 4.5 使用自定义容器镜像
 
 通过 `jobs.<job_id>.container.image` 可以指定 Job 的执行环境，把所需的语言、工具和依赖放进镜像。`runs-on` 选择承载任务的 Runner，`container.image` 选择在该 Runner 上启动的容器；这个 Job 的普通 `run` 步骤会在容器内执行。参见 [GitHub：在容器中运行 Job](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container)。
 
-#### 3.5.1 先使用公开镜像
+#### 4.5.1 先使用公开镜像
 
 下面是一个可选的新增工作流示例，保存为 `.github/workflows/workflow-custom-image.yaml`，提交并推送到默认分支后，在 Actions 中选择 **GitHub Actions Playground - Custom Image → Run workflow**：
 
@@ -485,11 +619,11 @@ jobs:
           echo "检查通过：已在容器中运行并读取仓库文档。"
 ```
 
-这个示例使用 [Python 官方镜像](https://github.com/docker-library/python/blob/master/3.12/slim-bookworm/Dockerfile)，日志会显示容器的系统信息和 Python 版本。要使用已有的自定义镜像，将 `image` 改为实际地址，例如 `ghcr.io/your-owner/bazel-hello-world:7.7.1`；私有镜像还需按第 3.5.3 节配置认证。
+这个示例使用 [Python 官方镜像](https://github.com/docker-library/python/blob/master/3.12/slim-bookworm/Dockerfile)，日志会显示容器的系统信息和 Python 版本。要使用已有的自定义镜像，将 `image` 改为实际地址，例如 `ghcr.io/your-owner/bazel-hello-world:7.7.1`；私有镜像还需按第 4.5.3 节配置认证。
 
-#### 3.5.2 构建并发布自己的镜像
+#### 4.5.2 构建并发布自己的镜像
 
-仓库根目录的 [Dockerfile](Dockerfile) 已提供预装 Bazel 7 和 C++ 编译工具的 Ubuntu 镜像，第 3.4 节直接在 Runner 上构建并运行它。如果希望通过 `container.image` 在整个 Job 中使用该镜像，可以先将它发布到 GHCR：
+仓库根目录的 [Dockerfile](Dockerfile) 已提供预装 Bazel 7 和 C++ 编译工具的 Ubuntu 镜像，第 4.4 节直接在 Runner 上构建并运行它。如果希望通过 `container.image` 在整个 Job 中使用该镜像，可以先将它发布到 GHCR：
 
 在已安装并启动 Docker、且可使用 Buildx 的本机执行以下命令。将 `YOUR_GITHUB_USERNAME` 替换为登录账号，`your-owner` 替换为有发布权限的个人或组织名称（镜像路径使用小写）。登录时在密码提示处输入具有 `write:packages` 权限的 PAT（classic）；组织启用 SSO 时还需为 Token 授权。参见 [GHCR 认证与发布说明](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
 
@@ -502,11 +636,11 @@ docker buildx build --platform linux/amd64 \
 
 在包含 `Dockerfile` 的目录运行构建命令。这里为示例中的标准 `ubuntu-latest` Runner 构建 `linux/amd64` 镜像，在 Apple Silicon 等 ARM 电脑上也显式指定该目标；`--push` 将构建结果发布到 GHCR。参见 [Docker Buildx 参数说明](https://docs.docker.com/reference/cli/docker/buildx/build/)。
 
-发布成功后，将第 3.5.1 节的 `image` 改为 `ghcr.io/your-owner/bazel-hello-world:7.7.1`。GHCR 首次发布的包默认是私有的，可按下一步配置读取权限，或在包设置中将其公开；公开镜像可匿名拉取。需要固定镜像内容时，可使用 `ghcr.io/your-owner/bazel-hello-world@sha256:实际摘要`，摘要可从构建输出中取得。参见 [GHCR 镜像可见性与摘要拉取](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
+发布成功后，将第 4.5.1 节的 `image` 改为 `ghcr.io/your-owner/bazel-hello-world:7.7.1`。GHCR 首次发布的包默认是私有的，可按下一步配置读取权限，或在包设置中将其公开；公开镜像可匿名拉取。需要固定镜像内容时，可使用 `ghcr.io/your-owner/bazel-hello-world@sha256:实际摘要`，摘要可从构建输出中取得。参见 [GHCR 镜像可见性与摘要拉取](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)。
 
-#### 3.5.3 使用私有镜像
+#### 4.5.3 使用私有镜像
 
-对于 GHCR 私有镜像，先在该包的 **Package settings → Manage Actions access** 中给当前工作流仓库授予读取权限，再将第 3.5.1 节工作流顶部的 `permissions` 改为：
+对于 GHCR 私有镜像，先在该包的 **Package settings → Manage Actions access** 中给当前工作流仓库授予读取权限，再将第 4.5.1 节工作流顶部的 `permissions` 改为：
 
 ```yaml
 permissions:
@@ -533,7 +667,7 @@ container:
 - 容器中 `run` 默认使用 `sh`。需要 Bash 语法时，确保镜像已安装 Bash，并给相应步骤设置 `shell: bash`。参见 [容器内的默认 Shell](https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/run-jobs-in-a-container)。
 - `container` 配置仅对所属 Job 生效。例如，若要让本项目的 `job_a`、`job_b` 和 `reduce` 都使用自定义镜像，需要在三个 Job 下分别配置；复用的 `hello` Job 则由 Hello 工作流自己的配置决定。
 
-### 3.6 动手实验
+### 4.6 动手实验
 
 #### 实验 A：故意失败，再修复
 
@@ -571,9 +705,9 @@ GIT_TOKEN="$(cat .github-token)" git \
   push
 ```
 
-上述命令在本地仓库目录执行，且已按第 2 节配置远程仓库及首次推送。之后刷新 GitHub 的 Actions 页面观察自动出现的运行记录。触发规则见 [工作流事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)。
+上述命令在本地仓库目录执行，且已按第 3 节配置远程仓库及首次推送。之后刷新 GitHub 的 Actions 页面观察自动出现的运行记录。触发规则见 [工作流事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)。
 
-### 3.7 使用 REST API 触发 Wait 工作流
+### 4.7 使用 REST API 触发 Wait 工作流
 
 `workflow_dispatch` 也可以通过 GitHub REST API 触发。本仓库默认分支 `main` 上已有 Wait 工作流，因此可以向它的 `dispatches` 端点发送 `POST` 请求，无需修改 YAML。下面在本项目目录运行；`.github-token` 是本地保存 PAT 的文件，已被 `.gitignore` 排除。细粒度 PAT 需要该仓库的 **Actions: write** 权限；经典 PAT 需要 `repo` scope。不要把 Token 写入 README 或提交到仓库。
 
@@ -602,11 +736,83 @@ unset GITHUB_TOKEN
 
 成功的触发请求返回 HTTP 200，并包含 `workflow_run_id`、`run_url` 和 `html_url`。紧接着查询时可能仍显示 `queued` 或 `in_progress`；稍后重复最后一条查询，直到 `status` 为 `completed`，再看 `conclusion` 是否为 `success`。运行页的 `wait` Job 日志应依次显示开始、等待 5 秒和继续执行。参见 [创建 workflow dispatch 事件](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event) 和 [查询工作流运行](https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run)。
 
-## 4. 工作流语法
+### 4.8 CI：推送后检查 README 和 C++ 程序
+
+仓库中的 [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) 使用 `push` 事件触发；每次向仓库推送提交后，`check` Job 会检查 README、编译并运行 C++ 示例，再验证程序输出。完整配置如下：
+
+```yaml
+name: CI
+
+# Run on every push to the repository.
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check README
+        run: test -s README.md
+
+      - name: Build and run C++ example
+        shell: bash
+        run: |
+          set -euo pipefail
+          c++ -std=c++17 -Wall -Wextra -Werror hello-world/main.cc -o "$RUNNER_TEMP/hello-world"
+          output="$("$RUNNER_TEMP/hello-world")"
+          test "$output" = 'Hello, world!'
+          echo "$output"
+          echo 'CI passed: README exists and C++ example prints Hello, world!' >> "$GITHUB_STEP_SUMMARY"
+```
+
+`contents: read` 为检出代码提供只读权限。`test -s README.md` 要求文档存在且非空；编译命令启用警告并将警告视为错误。任一步失败都会使 Job 失败；全部通过后，最后一步把结果写到运行页的 Summary。第 3.5 节展示了推送后在 Actions 页面查看运行记录的方法。
+
+## 5. 创建 Pull Request
+
+下面以修改 `README.md` 为例，从 `main` 创建分支并向 `main` 发起 PR。先完成第 3.2 节的远程仓库与推送认证配置；使用命令行创建 PR 还需要安装 [GitHub CLI](https://cli.github.com/) 并运行一次 `gh auth login`。
+
+### 5.1 创建分支、提交并推送
+
+在本项目目录执行。创建分支后先修改并保存 `README.md`，再运行提交和推送命令：
+
+```bash
+git switch main
+git pull --ff-only origin main
+git switch -c docs/pr-example
+
+# 修改并保存 README.md 后执行
+git add README.md
+git commit -m "Add pull request example"
+git push -u origin docs/pr-example
+```
+
+`git push -u origin docs/pr-example` 把分支发布到 GitHub，并设置上游分支；它本身不会创建 PR。如果 HTTPS 推送需要 PAT，可按第 3.2 节的临时凭据助手写法，将其中的 `push -u origin main` 改成 `push -u origin docs/pr-example`。
+
+### 5.2 创建并查看 PR
+
+推送成功后，在同一目录执行：
+
+```bash
+gh pr create --base main --head docs/pr-example \
+  --title "Add pull request example" \
+  --body "Document how to push a branch and open a PR."
+```
+
+`--base main` 指定合入目标，`--head docs/pr-example` 指定刚推送的分支；命令成功后会打印 PR 链接。未安装 GitHub CLI 时，也可以打开推送输出中的 `https://github.com/iamxuxiao-nvidia/topic-github-actions/pull/new/docs/pr-example`，填写标题和说明后点击 **Create pull request**。PR 创建后，继续向同一分支推送新提交会更新该 PR，无需再次运行 `gh pr create`。参见 [GitHub CLI 的 `gh pr create` 文档](https://cli.github.com/manual/gh_pr_create)。
+
+## 6. 工作流语法
 
 工作流文件必须放在 `.github/workflows/` 目录，并使用 `.yml` 或 `.yaml` 扩展名。下面的例子可保存为 `.github/workflows/readme-ci.yml`：推送到 `main`、向 `main` 提交 PR，或手动点击 **Run workflow** 时，检查 README 并写入运行摘要。
 
-### 4.1 带注释的完整示例
+### 6.1 带注释的完整示例
 
 ```yaml
 # 文件：.github/workflows/readme-ci.yml
@@ -653,7 +859,7 @@ jobs:
         run: echo "CI 完成"     # run 直接执行 shell 命令
 ```
 
-### 4.2 从外到内读 YAML
+### 6.2 从外到内读 YAML
 
 | 位置 | 作用 | 本例 |
 |---|---|---|
@@ -669,7 +875,7 @@ jobs:
 
 YAML 用**空格缩进**表示归属，用 `-` 表示列表项。例如，`steps` 缩进在 `check` 下面，三个 `- name` 属于该 Job。`run: |` 保留后续多行命令的换行；命令必须再缩进一级。`pull_request.branches` 过滤的是 PR 的**目标分支**。本例先用 `checkout` 下载仓库，后面的 `run` 才能读取 `README.md`。
 
-### 4.3 表达式、条件和跨 Job 数据
+### 6.3 表达式、条件和跨 Job 数据
 
 ```yaml
 # 以下是某个 Job 中的三个步骤，可放进 steps 列表
@@ -689,9 +895,9 @@ YAML 用**空格缩进**表示归属，用 `-` 表示列表项。例如，`steps
 
 每个 Job 有独立的运行环境；`needs` 只规定顺序，不会共享本地文件。跨 Job 传小型文本结果用 Job outputs，传文件用 artifacts。更多字段和完整规则见 [GitHub 工作流语法](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)。
 
-### 4.4 UML 类图：指南章节与工作流结构
+### 6.4 UML 类图：指南章节与工作流结构
 
-**指南章节。** 下图把本 README 的四个主章节表示为类。每个三级标题是所属类的属性；3.5 的三种镜像示例与 3.6 的两个实验等四级标题以缩进属性表示。这样可以从图中找到本指南的全部编号章节和工作流示例。
+**指南章节。** 下图把本 README 的六个主章节表示为类。每个三级标题是所属类的属性；4.5 的三种镜像示例与 4.6 的两个实验等四级标题以缩进属性表示。这样可以从图中找到本指南的全部编号章节和工作流示例。
 
 ![README 各章节和示例的 UML 类图](docs/images/readme-sections-uml.svg)
 

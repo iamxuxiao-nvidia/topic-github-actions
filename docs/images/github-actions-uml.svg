@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="950" viewBox="0 0 900 950" role="img" aria-labelledby="title description">
   <title id="title">GitHub Actions Workflow, Jobs, Job, Steps, and Step diagram</title>
-  <desc id="description">Workflow contains a Jobs mapping, which contains one or more Jobs. A normal Job has a Steps list, which contains one or more Steps. A Job can depend on other Jobs through needs. A Workflow can call another reusable Workflow through one of its Jobs using job-level uses. Jobs and Steps represent YAML collection keywords.</desc>
+  <desc id="description">Workflow contains a Jobs mapping, which contains one or more Jobs. A normal Job has a Steps list, which contains one or more Steps. A Step can run a command or use an Action. A Job can depend on other Jobs through needs. A Workflow can call another reusable Workflow through one of its Jobs using job-level uses. Jobs and Steps represent YAML collection keywords.</desc>
   <defs>
     <marker id="open-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
       <path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#495a70" stroke-width="1.5"/>
@@ -16,8 +16,8 @@
     <rect x="301" y="101" width="298" height="41" fill="#24496d"/>
     <text x="450" y="129" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="700">Workflow</text>
     <text x="318" y="168" fill="#26384d" font-size="16">+ name: String</text>
-    <text x="318" y="194" fill="#26384d" font-size="16">+ on: Event</text>
-    <text x="318" y="220" fill="#26384d" font-size="16">+ on.workflow_call: Event?</text>
+    <text x="318" y="194" fill="#26384d" font-size="16">+ <tspan font-weight="700">on</tspan>: Event</text>
+    <text x="318" y="220" fill="#26384d" font-size="16">+ <tspan font-weight="700">on</tspan>.workflow_call: Event?</text>
 
     <rect x="300" y="295" width="300" height="95" rx="6" fill="#f4fbf9" stroke="#0f766e" stroke-width="2"/>
     <rect x="301" y="296" width="298" height="41" fill="#0f766e"/>
@@ -41,7 +41,7 @@
     <rect x="301" y="821" width="298" height="41" fill="#24496d"/>
     <text x="450" y="849" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="700">Step</text>
     <text x="318" y="886" fill="#26384d" font-size="16">+ name: String?</text>
-    <text x="318" y="912" fill="#26384d" font-size="16">+ run | uses</text>
+    <text x="318" y="912" fill="#26384d" font-size="16">+ <tspan font-weight="700">run</tspan> | uses: <tspan font-weight="700">Action</tspan></text>
   </g>
 
   <g fill="none" stroke="#375a7f" stroke-width="2.5" stroke-linejoin="round">
@@ -66,5 +66,5 @@
 
   <path d="M 600 160 H 870 V 216 H 600" fill="none" stroke="#13806e" stroke-width="2.5" stroke-dasharray="8 5" marker-end="url(#open-arrow)"/>
   <text x="625" y="185" fill="#08685a" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700">uses: Workflow → Workflow</text>
-  <text x="625" y="205" fill="#08685a" font-family="Arial, Helvetica, sans-serif" font-size="14">via jobs.&lt;id&gt;.uses</text>
+  <text x="625" y="205" fill="#08685a" font-family="Arial, Helvetica, sans-serif" font-size="14">via <tspan font-weight="700">jobs</tspan>.&lt;id&gt;.uses</text>
 </svg>
